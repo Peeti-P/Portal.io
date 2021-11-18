@@ -29,6 +29,7 @@ contract project{
         projectOwner = _creator;
         goal = _goal;
         minGoal = _minGoal;
+        remaining_goal = _goal;
     }
     
     // only projectOwner can access the money in the vault
@@ -72,6 +73,7 @@ contract project{
         require(msg.value <= goal, "Value is higher than maximum value");
         contribute_amount[msg.sender] = contribute_amount[msg.sender].add(msg.value);
         totalContributeAmount = totalContributeAmount.add(msg.value);
+        remaining_goal = remaining_goal.sub(msg.value);
     }
     
     // function to receive money
@@ -81,6 +83,9 @@ contract project{
         totalContributeAmount = totalContributeAmount.add(msg.value);
         address_all_participant.push(msg.sender);
         all_participant_count++;
+        // remaining_goal = remaining_goal - msg.value;
+        remaining_goal = remaining_goal.sub(msg.value);
+        votingRights[msg.sender] = true;
     }
     
     // voting system
@@ -88,7 +93,7 @@ contract project{
         require(contribute_amount[msg.sender] > 0, "You are not participant in this project");
         require(votingRights[msg.sender] == true , "You already voted" );
         totalVote = totalVote.add(contribute_amount[msg.sender]);
-        votingRights[msg.sender] == false;
+        votingRights[msg.sender] = false;
     }
     
     function redeem() public {
@@ -104,8 +109,13 @@ contract project{
                     
     }
     
+    function getAllAddress() public view returns (address[] memory){
+        return address_all_participant;
+    }
+    
     function getisOpen() view public returns(bool) {
         return(isOpen);
     }
     
 }
+
