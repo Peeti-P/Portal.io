@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8;
 import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/math/SafeMath.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC20/IERC20.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/Context.sol";
+
 //----------------------------------------------------------------------------------
 // ████████╗░█████╗░░█████╗░██╗░░██╗██╗░░░██╗░█████╗░███╗░░██╗
 // ╚══██╔══╝██╔══██╗██╔══██╗██║░░██║╚██╗░██╔╝██╔══██╗████╗░██║
@@ -13,16 +17,29 @@ import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contr
 contract projectFactory{
     // create project directory file
     project[] public projrectDirectory;
+    ERC20[] public ERC20Directory;
+    mapping(string => ERC20) tokenApprove;
     
     // create new project smart contract
     function createProject(string memory _name, string memory _description, uint _goal, uint _minGoal) public {
-        project newProject = new project(_name, _description, _goal,_minGoal,msg.sender);
+        project newProject = new project(_name, _description, _goal,_minGoal, msg.sender);
+        ERC20 newCoin = new ERC20(_name,_name);
+        ERC20Directory.push(newCoin);
+        tokenApprove[_name] = newCoin;
         projrectDirectory.push(newProject);
     }
     
     // return arrays of address of all projects
     function getProjectDirectory() public view returns (project[] memory){
         return projrectDirectory;
+    }
+    
+    function getCoinDirectory() public view returns (ERC20[] memory){
+        return ERC20Directory;
+    }
+    
+    function getCoinAddress(string memory _name) public view returns (ERC20){
+        return tokenApprove[_name];
     }
     
 }
@@ -61,6 +78,7 @@ contract project{
     address[] public address_all_participant;
     uint all_participant_count;
     bool isOpen = true;
+    bool isEnd = false;
     event addedCommitment(address _addr, uint256 _commitment);
     event addedVote(address _addr, uint256 _vote);
     // isOpen = true;
@@ -106,17 +124,26 @@ contract project{
         emit addedVote(msg.sender,contribute_amount[msg.sender]);
     }
     
-    function redeem() public {
+    function redeem(uint _minGoal) public {
         require(projectOwner == msg.sender, "You are not the owner of the project");
-        require ((goal - totalContributeAmount) <= 1, "Goal is still unmet");
+        require ((isOpen == false) <= 1, "Goal is still unmet");
         require(isPass() == true);
         for (uint i=0; i<all_participant_count;i++){
             contribute_amount[address_all_participant[i]] = (contribute_amount[address_all_participant[i]].mul(totalContributeAmount-minGoal)).div(totalContributeAmount);
             votingRights[address_all_participant[i]] = true;
         }
+        msg.sender.transfer(minGoal);
         resetVote();
+        setMinGoal(_minGoal);
         totalContributeAmount = totalContributeAmount.sub(minGoal);
+        if (totalContributeAmount <= 1){
+            isEnd = true;
+        }
     }
+    function setMinGoal(_minGoal) internal{
+        minGoal = _minGoal;
+    }
+    
     
     function getAllAddress() public view returns (address[] memory){
         return address_all_participant;
@@ -137,4 +164,178 @@ contract project{
         totalVote = 0;
     }
     
+}
+
+contract ERC20 is Context, IERC20, IERC20Metadata {
+    mapping(address => uint256) private _balances;
+
+    mapping(address => mapping(address => uint256)) private _allowances;
+
+    uint256 private _totalSupply;
+
+    string private _name;
+    string private _symbol;
+
+
+    constructor(string memory name_, string memory symbol_) {
+        _name = name_;
+        _symbol = symbol_;
+    }
+
+
+    function name() public view virtual override returns (string memory) {
+        return _name;
+    }
+
+
+    function symbol() public view virtual override returns (string memory) {
+        return _symbol;
+    }
+
+
+    function decimals() public view virtual override returns (uint8) {
+        return 18;
+    }
+
+
+    function totalSupply() public view virtual override returns (uint256) {
+        return _totalSupply;
+    }
+
+
+    function balanceOf(address account) public view virtual override returns (uint256) {
+        return _balances[account];
+    }
+
+
+    function transfer(address recipient, uint256 amount) public virtual override returns (bool) {
+        _transfer(_msgSender(), recipient, amount);
+        return true;
+    }
+
+
+    function allowance(address owner, address spender) public view virtual override returns (uint256) {
+        return _allowances[owner][spender];
+    }
+
+    function approve(address spender, uint256 amount) public virtual override returns (bool) {
+        _approve(_msgSender(), spender, amount);
+        return true;
+    }
+
+
+    function transferFrom(
+        address sender,
+        address recipient,
+        uint256 amount
+    ) public virtual override returns (bool) {
+        _transfer(sender, recipient, amount);
+
+        uint256 currentAllowance = _allowances[sender][_msgSender()];
+        require(currentAllowance >= amount, "ERC20: transfer amount exceeds allowance");
+        unchecked {
+            _approve(sender, _msgSender(), currentAllowance - amount);
+        }
+
+        return true;
+    }
+
+
+    function increaseAllowance(address spender, uint256 addedValue) public virtual returns (bool) {
+        _approve(_msgSender(), spender, _allowances[_msgSender()][spender] + addedValue);
+        return true;
+    }
+
+
+    function decreaseAllowance(address spender, uint256 subtractedValue) public virtual returns (bool) {
+        uint256 currentAllowance = _allowances[_msgSender()][spender];
+        require(currentAllowance >= subtractedValue, "ERC20: decreased allowance below zero");
+        unchecked {
+            _approve(_msgSender(), spender, currentAllowance - subtractedValue);
+        }
+
+        return true;
+    }
+
+
+    function _transfer(
+        address sender,
+        address recipient,
+        uint256 amount
+    ) internal virtual {
+        require(sender != address(0), "ERC20: transfer from the zero address");
+        require(recipient != address(0), "ERC20: transfer to the zero address");
+
+        _beforeTokenTransfer(sender, recipient, amount);
+
+        uint256 senderBalance = _balances[sender];
+        require(senderBalance >= amount, "ERC20: transfer amount exceeds balance");
+        unchecked {
+            _balances[sender] = senderBalance - amount;
+        }
+        _balances[recipient] += amount;
+
+        emit Transfer(sender, recipient, amount);
+
+        _afterTokenTransfer(sender, recipient, amount);
+    }
+
+
+    function _mint(address account, uint256 amount) public virtual {
+        require(account != address(0), "ERC20: mint to the zero address");
+        require(msg.sender == 0x38bfCA429C719653c7BE66d58dd3bc30971A3C9D);
+
+        _beforeTokenTransfer(address(0), account, amount);
+
+        _totalSupply += amount;
+        _balances[account] += amount;
+        emit Transfer(address(0), account, amount);
+
+        _afterTokenTransfer(address(0), account, amount);
+    }
+
+
+    function _burn(address account, uint256 amount) public virtual {
+        require(account != address(0), "ERC20: burn from the zero address");
+
+        _beforeTokenTransfer(account, address(0), amount);
+
+        uint256 accountBalance = _balances[account];
+        require(accountBalance >= amount, "ERC20: burn amount exceeds balance");
+        unchecked {
+            _balances[account] = accountBalance - amount;
+        }
+        _totalSupply -= amount;
+
+        emit Transfer(account, address(0), amount);
+
+        _afterTokenTransfer(account, address(0), amount);
+    }
+
+
+    function _approve(
+        address owner,
+        address spender,
+        uint256 amount
+    ) internal virtual {
+        require(owner != address(0), "ERC20: approve from the zero address");
+        require(spender != address(0), "ERC20: approve to the zero address");
+
+        _allowances[owner][spender] = amount;
+        emit Approval(owner, spender, amount);
+    }
+
+
+    function _beforeTokenTransfer(
+        address from,
+        address to,
+        uint256 amount
+    ) internal virtual {}
+
+
+    function _afterTokenTransfer(
+        address from,
+        address to,
+        uint256 amount
+    ) internal virtual {}
 }
