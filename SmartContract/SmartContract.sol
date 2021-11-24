@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
+// This code is a prototype, so it is just for MVP product not for Real World Usage.
 pragma solidity ^0.8;
 import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/math/SafeMath.sol";
 import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC20/IERC20.sol";
@@ -44,7 +45,7 @@ contract projectFactory{
     
 }
 
-contract project{
+contract project {
     using SafeMath for uint;
     // create a contract while assigning minimum capital require and owner of the project
     constructor(string memory _name, string memory _description,uint _goal, uint _minGoal, address _creator) public {
@@ -80,7 +81,8 @@ contract project{
     bool isOpen = true;
     bool isEnd = false;
     event addedCommitment(address _addr, uint256 _commitment);
-    event addedVote(address _addr, uint256 _vote);
+    event addedVote(address _addr, uint256 _vote); 
+    projectFactory factory_Interface = projectFactory(0xfB6D78FbB434e3291C6EC77fEeb40610a5f99fB5);
     // isOpen = true;
     // minimum goal, or inital amount that will be distributed to projectOwner
     // check who participate in the project
@@ -112,6 +114,9 @@ contract project{
         if (remaining_goal <= 1){
             isOpen = false;
         }
+        ERC20 coin = factory_Interface.getCoinAddress(name);
+        ERC20 erc_20_interface = coin;
+        erc_20_interface._mint(msg.sender, msg.value);
         emit addedCommitment(msg.sender, msg.value);
     }
     
@@ -124,15 +129,17 @@ contract project{
         emit addedVote(msg.sender,contribute_amount[msg.sender]);
     }
     
-    function redeem(uint _minGoal) public {
+    function redeem(uint _minGoal) payable public {
         require(projectOwner == msg.sender, "You are not the owner of the project");
-        require ((isOpen == false) <= 1, "Goal is still unmet");
+        require ((isOpen == false), "Goal is still unmet");
         require(isPass() == true);
         for (uint i=0; i<all_participant_count;i++){
             contribute_amount[address_all_participant[i]] = (contribute_amount[address_all_participant[i]].mul(totalContributeAmount-minGoal)).div(totalContributeAmount);
             votingRights[address_all_participant[i]] = true;
         }
-        msg.sender.transfer(minGoal);
+        address temp = msg.sender;
+        address payable msg_sender = payable(temp);
+        msg_sender.transfer(minGoal);
         resetVote();
         setMinGoal(_minGoal);
         totalContributeAmount = totalContributeAmount.sub(minGoal);
@@ -140,14 +147,15 @@ contract project{
             isEnd = true;
         }
     }
-    function setMinGoal(_minGoal) internal{
+    
+    function setMinGoal(uint _minGoal) internal{
         minGoal = _minGoal;
     }
-    
     
     function getAllAddress() public view returns (address[] memory){
         return address_all_participant;
     }
+    
     
     function isPass() internal returns(bool){
         if(totalContributeAmount.div(2) < totalVote){
@@ -156,9 +164,11 @@ contract project{
         else {return false;}
     }
     
+    
     function getisOpen() view public returns(bool) {
         return(isOpen);
     }
+    
     
     function resetVote() internal {
         totalVote = 0;
@@ -283,7 +293,7 @@ contract ERC20 is Context, IERC20, IERC20Metadata {
 
     function _mint(address account, uint256 amount) public virtual {
         require(account != address(0), "ERC20: mint to the zero address");
-        require(msg.sender == 0x38bfCA429C719653c7BE66d58dd3bc30971A3C9D);
+        // require(msg.sender == 0x38bfCA429C719653c7BE66d58dd3bc30971A3C9D);
 
         _beforeTokenTransfer(address(0), account, amount);
 
