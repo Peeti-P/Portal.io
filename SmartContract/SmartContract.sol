@@ -82,7 +82,7 @@ contract project {
     bool isEnd = false;
     event addedCommitment(address _addr, uint256 _commitment);
     event addedVote(address _addr, uint256 _vote); 
-    projectFactory factory_Interface = projectFactory(0xfB6D78FbB434e3291C6EC77fEeb40610a5f99fB5);
+    projectFactory factory_Interface = projectFactory(0x4BB385C6F9361fAC51C17F74bE8cBCC3D807c642);
     // isOpen = true;
     // minimum goal, or inital amount that will be distributed to projectOwner
     // check who participate in the project
@@ -349,3 +349,17 @@ contract ERC20 is Context, IERC20, IERC20Metadata {
         uint256 amount
     ) internal virtual {}
 }
+
+
+contract Portal{
+    projectFactory factoryInterface =  projectFactory(0xA28B125d7722273408f4aEEE680474855935E829);
+    function createProject(string memory _name, string memory _description, uint _goal, uint _minGoal){
+        factory_Interface.createProject(_name, _description, _goal, _minGoal);
+    }
+
+    function getCoinAddress(string memory _name){
+        factory_Interface.getCoinAddress(_name);
+
+
+}
+
