@@ -20,6 +20,8 @@ contract projectFactory{
     project[] public projrectDirectory;
     ERC20[] public ERC20Directory;
     mapping(string => ERC20) tokenApprove;
+    mapping(string => project) projectApprove;
+
     
     // create new project smart contract
     function createProject(string memory _name, string memory _description, uint _goal, uint _minGoal) public {
@@ -27,6 +29,7 @@ contract projectFactory{
         ERC20 newCoin = new ERC20(_name,_name);
         ERC20Directory.push(newCoin);
         tokenApprove[_name] = newCoin;
+        projectApprove[_name] = newProject;
         projrectDirectory.push(newProject);
     }
     
@@ -41,6 +44,10 @@ contract projectFactory{
     
     function getCoinAddress(string memory _name) public view returns (ERC20){
         return tokenApprove[_name];
+    }
+        
+    function getProjectAddress(string memory _name) public view returns (project){
+        return projectApprove[_name];
     }
     
 }
@@ -82,7 +89,7 @@ contract project {
     bool isEnd = false;
     event addedCommitment(address _addr, uint256 _commitment);
     event addedVote(address _addr, uint256 _vote); 
-    projectFactory factory_Interface = projectFactory(0x4BB385C6F9361fAC51C17F74bE8cBCC3D807c642);
+    projectFactory factory_Interface = projectFactory(0x59dAD1D21E4dc8ee21741763edD774c336CA831e);
     // isOpen = true;
     // minimum goal, or inital amount that will be distributed to projectOwner
     // check who participate in the project
@@ -100,46 +107,43 @@ contract project {
     }
     
     // function to receive money
-    function contribute() public payable{
-        require(msg.value > 0, "Value must be higher than 0");
-        require(msg.value <= remaining_goal, "Value is higher than the remaining goal value");
-        require(contribute_amount[msg.sender] == 0, "You already contributed");
+    function contribute(uint amount, address _address) public payable{
+        require(amount > 0, "Value must be higher than 0");
+        require(amount <= remaining_goal, "Value is higher than the remaining goal value");
+        require(contribute_amount[_address] == 0, "You already contributed");
         require(isOpen == true, "The crowdfunding period is already finished");
-        contribute_amount[msg.sender] = contribute_amount[msg.sender].add(msg.value);
-        totalContributeAmount = totalContributeAmount.add(msg.value);
-        address_all_participant.push(msg.sender);
+        contribute_amount[_address] = contribute_amount[_address].add(amount);
+        totalContributeAmount = totalContributeAmount.add(amount);
+        address_all_participant.push(_address);
         all_participant_count++;
-        remaining_goal = remaining_goal.sub(msg.value);
-        votingRights[msg.sender] = true;
+        remaining_goal = remaining_goal.sub(amount);
+        votingRights[_address] = true;
         if (remaining_goal <= 1){
             isOpen = false;
         }
-        ERC20 coin = factory_Interface.getCoinAddress(name);
-        ERC20 erc_20_interface = coin;
-        erc_20_interface._mint(msg.sender, msg.value);
-        emit addedCommitment(msg.sender, msg.value);
+        emit addedCommitment(msg.sender, amount);
     }
     
     // voting system
-    function vote() public {
-        require(contribute_amount[msg.sender] > 0, "You are not participant in this project");
-        require(votingRights[msg.sender] == true , "You already voted" );
-        totalVote = totalVote.add(contribute_amount[msg.sender]);
-        votingRights[msg.sender] = false;
-        emit addedVote(msg.sender,contribute_amount[msg.sender]);
+    function vote(address _address) public {
+        require(contribute_amount[_address] > 0, "You are not participant in this project");
+        require(votingRights[_address] == true , "You already voted" );
+        totalVote = totalVote.add(contribute_amount[_address]);
+        votingRights[_address] = false;
+        emit addedVote(_address,contribute_amount[_address]);
     }
     
-    function redeem(uint _minGoal) payable public {
-        require(projectOwner == msg.sender, "You are not the owner of the project");
+    function redeem(uint _minGoal, address _address) payable public {
+        require(projectOwner == _address, "You are not the owner of the project");
         require ((isOpen == false), "Goal is still unmet");
         require(isPass() == true);
         for (uint i=0; i<all_participant_count;i++){
             contribute_amount[address_all_participant[i]] = (contribute_amount[address_all_participant[i]].mul(totalContributeAmount-minGoal)).div(totalContributeAmount);
             votingRights[address_all_participant[i]] = true;
         }
-        address temp = msg.sender;
-        address payable msg_sender = payable(temp);
-        msg_sender.transfer(minGoal);
+        // address temp = _address;
+        // address payable msg_sender = payable(temp);
+        // msg_sender.transfer(minGoal);
         resetVote();
         setMinGoal(_minGoal);
         totalContributeAmount = totalContributeAmount.sub(minGoal);
@@ -172,6 +176,10 @@ contract project {
     
     function resetVote() internal {
         totalVote = 0;
+    }
+
+    function getContributeAmount(address _address) public returns(uint){
+        return contribute_amount[_address];
     }
     
 }
@@ -352,14 +360,34 @@ contract ERC20 is Context, IERC20, IERC20Metadata {
 
 
 contract Portal{
-    projectFactory factoryInterface =  projectFactory(0xA28B125d7722273408f4aEEE680474855935E829);
-    function createProject(string memory _name, string memory _description, uint _goal, uint _minGoal){
-        factory_Interface.createProject(_name, _description, _goal, _minGoal);
+    // need to change contract of the project factory
+    projectFactory factoryInterface =  projectFactory(0x59dAD1D21E4dc8ee21741763edD774c336CA831e);
+    function createProject(string memory _name, string memory _description, uint _goal, uint _minGoal) public {
+        factoryInterface.createProject(_name, _description, _goal, _minGoal);
     }
 
-    function getCoinAddress(string memory _name){
-        factory_Interface.getCoinAddress(_name);
+    function getCoinAddress(string memory _name) view public returns(ERC20) {
+        return factoryInterface.getCoinAddress(_name);
+    }
+
+    function contribute(string memory _name, uint _amount) public {
+        project projectInterface = project(factoryInterface.getProjectAddress(_name));
+        ERC20 erc_20_interface = ERC20(factoryInterface.getCoinAddress(_name));
+        projectInterface.contribute(_amount, msg.sender);
+        erc_20_interface._mint(msg.sender, _amount);
+    }
+
+    function vote(string memory _name) public {
+        project projectInterface = project(factoryInterface.getProjectAddress(_name));
+        projectInterface.vote(msg.sender);
+        ERC20 erc_20_interface = ERC20(factoryInterface.getCoinAddress(_name));
+        erc_20_interface._burn(msg.sender,projectInterface.getContributeAmount(msg.sender));
+    }
+
+    function redeem() public {
+
+    }
+
 
 
 }
-
