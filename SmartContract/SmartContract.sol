@@ -84,6 +84,7 @@ contract project {
     uint public remaining_goal;
     uint public totalVote;
     mapping(address => uint) public contribute_amount;
+    mapping(address => uint) public voting_amount;
     mapping(address => bool) public votingRights;
     uint public totalContributeAmount;
     address[] public address_all_participant;
@@ -91,16 +92,8 @@ contract project {
     bool isOpen = true;
     bool isEnd = false;
     event addedCommitment(address _addr, uint256 _commitment);
-    event addedVote(address _addr, uint256 _vote); 
-    // projectFactory factoryInterface =  projectFactory(0x0bDdFF7Ca2741dDF236787E76581F9a7D6E41652);
-    // Portal portalInterface =  Portal(0x589C4c0C5Afb8d29E96780555535db46C9bfE244);
-    // isOpen = true;
-    // minimum goal, or inital amount that will be distributed to projectOwner
-    // check who participate in the project
-    // e.g. address => 1 eth
-    // address of participant
-    // if the totalContributeAmount > supply/2 then we can conclude the approval
-    // fall back function
+    event addedVote(address _addr, uint256 _vote);
+
     fallback() external payable{
         // require(msg.value <= goal, "Value is higher than maximum value");
         // contribute_amount[msg.sender] = contribute_amount[msg.sender].add(msg.value);
@@ -127,12 +120,13 @@ contract project {
     }
     
     // voting system
-    function vote(string memory _name, address _address) public {
+    function vote(string memory _name, address _address, uint _voting_amount) public {
         require(contribute_amount[_address] > 0, "You are not participant in this project");
         require(votingRights[_address] == true , "You already voted" );
-        totalVote = totalVote.add(contribute_amount[_address]);
+        totalVote = totalVote.add(_voting_amount);
+        voting_amount[_address] = _voting_amount;
         votingRights[_address] = false;
-        emit addedVote(_address,contribute_amount[_address]);
+        emit addedVote(_address,_voting_amount);
     }
     
     function redeem(uint _minGoal, address _address) payable public {
@@ -140,37 +134,41 @@ contract project {
         require ((isOpen == false), "Goal is still unmet");
         require(isPass() == true, "Waitting for voting result");
         require(isEnd == false, "The crowdfunding is already finished");
-        require(_minGoal <= totalContributeAmount, "Mininum Goal Exceed total amount");
+        // require(_minGoal <= totalContributeAmount, "Mininum Goal Exceed total amount");
         // project projectInterface = project(factoryInterface.getProjectAddress(name));
         // ERC20 erc_20_interface = ERC20(factoryInterface.getCoinAddress(name));
-        
         for (uint i=0; i<all_participant_count;i++){
-            contribute_amount[address_all_participant[i]] = (contribute_amount[address_all_participant[i]].mul(totalContributeAmount-minGoal)).div(totalContributeAmount);
-            // erc_20_interface._mint(address_all_participant[i], contribute_amount[address_all_participant[i]]);
             votingRights[address_all_participant[i]] = true;
         }
-
         address temp = _address;
         address payable msg_sender = payable(temp);
         msg_sender.transfer(minGoal);
         resetVote();
-        setMinGoal(_minGoal);
-        totalContributeAmount = totalContributeAmount.sub(minGoal);
         if (totalContributeAmount <= 10){
             isEnd = true;
         }
+        else{
+        totalContributeAmount = totalContributeAmount.sub(minGoal);
+        setMinGoal(_minGoal);}
+    }
+
+    function withdraw_cancel(uint _amount, address _address) payable public {
+        address temp = _address;
+        address payable msg_sender = payable(temp);
+        msg_sender.transfer(_amount);
+
     }
 
     function cancelProject(address _address) payable public{
         require(projectOwner == _address, "You are not the owner of the project");
         isEnd = true;
-        for (uint i=0; i<all_participant_count;i++){
-            address temp = address_all_participant[i];
-            address payable msg_sender = payable(temp);
-            msg_sender.transfer(contribute_amount[address_all_participant[i]]);
-            // erc_20_interface._mint(address_all_participant[i], contribute_amount[address_all_participant[i]]);
-        }
+        // for (uint i=0; i<all_participant_count;i++){
+        //     address temp = address_all_participant[i];
+        //     address payable msg_sender = payable(temp);
+        //     msg_sender.transfer(contribute_amount[address_all_participant[i]]);
+        // }
     }
+
     
     function setMinGoal(uint _minGoal) internal{
         minGoal = _minGoal;
@@ -187,10 +185,22 @@ contract project {
         }
         else {return false;}
     }
+
+    function getVotingAmount(address _address) public view returns (uint){
+        return voting_amount[_address];
+    }
     
     
     function getisOpen() view public returns(bool) {
         return(isOpen);
+    }
+
+    function isEnded() view public returns(bool) {
+        return isEnd;
+    }
+
+    function balanceofProject() view public returns(uint) {
+        return address(this).balance;
     }
     
     
@@ -200,6 +210,10 @@ contract project {
 
     function getContributeAmount(address _address) public returns(uint){
         return contribute_amount[_address];
+    }
+
+    function getAllparticount() public view returns(uint){
+        return all_participant_count;
     }
     
 }
@@ -382,7 +396,7 @@ contract ERC20 is Context, IERC20, IERC20Metadata {
 contract Portal{
     // need to change contract of the project factory
     mapping(string => uint) ProjectVault;
-    projectFactory factoryInterface =  projectFactory(0x6feEa2561a0541ee0995b3A139eDd1e30161F86e);
+    projectFactory factoryInterface =  projectFactory(0x3C61453A212582506Dec3f859BA05856a8cDB3f0);
 
     function createProject(string memory _name, string memory _description, uint _goal, uint _minGoal) public {
         factoryInterface.createProject(_name, _description, _goal, _minGoal, msg.sender);
@@ -402,14 +416,19 @@ contract Portal{
 
     function vote(string memory _name) public {
         project projectInterface = project(factoryInterface.getProjectAddress(_name));
-        projectInterface.vote(_name, msg.sender);
-        // ERC20 erc_20_interface = ERC20(factoryInterface.getCoinAddress(_name));
-        // erc_20_interface._burn(msg.sender,projectInterface.getContributeAmount(msg.sender));
+        projectInterface.vote(_name, msg.sender, checkTokenBalance(_name, msg.sender));
+        ERC20 erc_20_interface = ERC20(factoryInterface.getCoinAddress(_name));
+        erc_20_interface._burn(msg.sender,checkTokenBalance(_name, msg.sender));
     }
 
-    function redeem(string memory _name, uint _minGoal) public {
+    function redeem(string memory _name, uint _minGoal) payable public {
         project projectInterface = project(factoryInterface.getProjectAddress(_name));
-        projectInterface.redeem(_minGoal, msg.sender); 
+        projectInterface.redeem(_minGoal, msg.sender);
+        ERC20 erc_20_interface = ERC20(factoryInterface.getCoinAddress(_name));
+        address[] memory temp = projectInterface.getAllAddress();
+        for (uint i=0; i<projectInterface.getAllparticount();i++){
+            erc_20_interface._mint(temp[i],projectInterface.getVotingAmount(temp[i]));
+        }
     }
 
     function Launch(string memory _name) public payable {
@@ -432,11 +451,33 @@ contract Portal{
         return ProjectVault[_name];
     }
 
+    function checkTokenBalance(string memory _name, address _address) public view returns(uint){
+        project projectInterface = project(factoryInterface.getProjectAddress(_name));
+        ERC20 erc_20_interface = ERC20(factoryInterface.getCoinAddress(_name));
+        return erc_20_interface.balanceOf(_address);
+    }
+
     function cusotmer_redeem(string memory _name) public payable {
         project projectInterface = project(factoryInterface.getProjectAddress(_name));
         ERC20 erc_20_interface = ERC20(factoryInterface.getCoinAddress(_name));
         erc_20_interface._burn(msg.sender,projectInterface.getContributeAmount(msg.sender));
     }
 
+    function cancel_project(string memory _name) public {
+        project projectInterface = project(factoryInterface.getProjectAddress(_name));
+        ERC20 erc_20_interface = ERC20(factoryInterface.getCoinAddress(_name));
+        address[] memory temp = projectInterface.getAllAddress();
+        projectInterface.cancelProject(msg.sender);
+        uint totalsupply = erc_20_interface.totalSupply();
+        uint projectBalance = projectInterface.balanceofProject();
+        for (uint i=0; i<projectInterface.getAllparticount();i++){
+            projectInterface.withdraw_cancel((erc_20_interface.balanceOf(temp[i])/totalsupply)*projectBalance, temp[i]);
+        }
+    }
+
+    function getAllAddressProject(string memory _name) public view returns (address[] memory) {
+        project projectInterface = project(factoryInterface.getProjectAddress(_name));
+        return projectInterface.getAllAddress();
+    }
 }
 
