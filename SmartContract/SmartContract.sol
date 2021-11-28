@@ -195,7 +195,7 @@ contract project {
         return(isOpen);
     }
 
-    function isEnded() view public returns(bool) {
+    function getisEnded() view public returns(bool) {
         return isEnd;
     }
 
@@ -396,7 +396,7 @@ contract ERC20 is Context, IERC20, IERC20Metadata {
 contract Portal{
     // need to change contract of the project factory
     mapping(string => uint) ProjectVault;
-    projectFactory factoryInterface =  projectFactory(0x3C61453A212582506Dec3f859BA05856a8cDB3f0);
+    projectFactory factoryInterface =  projectFactory(0x5313f63C8Fcaf4352806373300C5F1AF613AAF4B);
 
     function createProject(string memory _name, string memory _description, uint _goal, uint _minGoal) public {
         factoryInterface.createProject(_name, _description, _goal, _minGoal, msg.sender);
@@ -423,6 +423,7 @@ contract Portal{
 
     function redeem(string memory _name, uint _minGoal) payable public {
         project projectInterface = project(factoryInterface.getProjectAddress(_name));
+        require (projectInterface.getisEnded() == false, "Project is already ended");
         projectInterface.redeem(_minGoal, msg.sender);
         ERC20 erc_20_interface = ERC20(factoryInterface.getCoinAddress(_name));
         address[] memory temp = projectInterface.getAllAddress();
@@ -432,10 +433,13 @@ contract Portal{
     }
 
     function Launch(string memory _name) public payable {
+        project projectInterface = project(factoryInterface.getProjectAddress(_name));
         require(return_isOpen(_name) == false, "This project is still ongoing");
+        require (projectInterface.getisEnded() == false, "Project is already ended");
+        require (ProjectVault[_name] != 0, "The project is already launched");
         address payable project_receiver = payable(factoryInterface.getProjectAddress(_name));
         project_receiver.transfer(ProjectVault[_name]);
-        ProjectVault[_name] -= msg.value;
+        ProjectVault[_name] = 0;
     }
 
     function return_isOpen(string memory _name) public view returns(bool){
@@ -457,21 +461,24 @@ contract Portal{
         return erc_20_interface.balanceOf(_address);
     }
 
-    function cusotmer_redeem(string memory _name) public payable {
+    function customer_redeem(string memory _name) public payable {
         project projectInterface = project(factoryInterface.getProjectAddress(_name));
+        require (projectInterface.getisEnded() == true, "Project is still ongoing");
         ERC20 erc_20_interface = ERC20(factoryInterface.getCoinAddress(_name));
         erc_20_interface._burn(msg.sender,projectInterface.getContributeAmount(msg.sender));
     }
 
     function cancel_project(string memory _name) public {
         project projectInterface = project(factoryInterface.getProjectAddress(_name));
+        require (projectInterface.getisEnded() == false, "Project is already ended");
+
         ERC20 erc_20_interface = ERC20(factoryInterface.getCoinAddress(_name));
         address[] memory temp = projectInterface.getAllAddress();
         projectInterface.cancelProject(msg.sender);
         uint totalsupply = erc_20_interface.totalSupply();
         uint projectBalance = projectInterface.balanceofProject();
         for (uint i=0; i<projectInterface.getAllparticount();i++){
-            projectInterface.withdraw_cancel((erc_20_interface.balanceOf(temp[i])/totalsupply)*projectBalance, temp[i]);
+            projectInterface.withdraw_cancel((erc_20_interface.balanceOf(temp[i])*projectBalance)/totalsupply, temp[i]);
         }
     }
 
