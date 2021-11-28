@@ -4,7 +4,7 @@ Portal (Address: 0x25b72301a76dc5a12dB4082c3D9063c3A4F5D78f) (Goerli Testnet)
 Business Process
 1.	Normal Route
   1.	Initiate Project [call function createProject(string _name, string memory _description, uint _goal, uint _minGoal)]
-   2.	Participants Contribute money -> [Contribute(string _name) +  need to insert value]
+  2.	Participants Contribute money -> [Contribute(string _name) +  need to insert value]
       And receive ERC-20 token back
   3.	When money is already full -> [Initiators call Launch (transfer money from main to sub contract)]
   4.	Participants Vote for project [call vote (string _name)] participants’ ERC-20 token are burned 
