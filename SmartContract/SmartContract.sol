@@ -93,6 +93,8 @@ contract project {
     bool isEnd = false;
     event addedCommitment(address _addr, uint256 _commitment);
     event addedVote(address _addr, uint256 _vote);
+    uint vote_continue = 0;
+    uint vote_not_continue = 0;
 
     fallback() external payable{
         // require(msg.value <= goal, "Value is higher than maximum value");
@@ -120,9 +122,15 @@ contract project {
     }
     
     // voting system
-    function vote(string memory _name, address _address, uint _voting_amount) public {
+    function vote(string memory _name, address _address, uint _voting_amount, bool continue_or_not) public {
         require(contribute_amount[_address] > 0, "You are not participant in this project");
         require(votingRights[_address] == true , "You already voted" );
+        if (continue_or_not == true){
+            vote_continue = vote_continue + _voting_amount;
+        }
+        else{
+           vote_not_continue = vote_not_continue + _voting_amount;
+        }
         totalVote = totalVote.add(_voting_amount);
         voting_amount[_address] = _voting_amount;
         votingRights[_address] = false;
@@ -149,7 +157,11 @@ contract project {
         }
         else{
         totalContributeAmount = totalContributeAmount.sub(minGoal);
-        setMinGoal(_minGoal);}
+        setMinGoal(_minGoal);
+        vote_continue = 0;
+        vote_not_continue = 0;
+        totalVote = 0;
+        }
     }
 
     function withdraw_cancel(uint _amount, address _address) payable public {
@@ -161,12 +173,8 @@ contract project {
 
     function cancelProject(address _address) payable public{
         require(projectOwner == _address, "You are not the owner of the project");
+        require(vote_not_continue > goal/2, "No voting need to surpass half of the total amount");
         isEnd = true;
-        // for (uint i=0; i<all_participant_count;i++){
-        //     address temp = address_all_participant[i];
-        //     address payable msg_sender = payable(temp);
-        //     msg_sender.transfer(contribute_amount[address_all_participant[i]]);
-        // }
     }
 
     
@@ -180,7 +188,7 @@ contract project {
     
     
     function isPass() internal returns(bool){
-        if(totalContributeAmount.div(2) < totalVote){
+        if(vote_continue > goal/2){
             return true;
         }
         else {return false;}
@@ -396,7 +404,7 @@ contract ERC20 is Context, IERC20, IERC20Metadata {
 contract Portal{
     // need to change contract of the project factory
     mapping(string => uint) ProjectVault;
-    projectFactory factoryInterface =  projectFactory(0x5313f63C8Fcaf4352806373300C5F1AF613AAF4B);
+    projectFactory factoryInterface =  projectFactory(0x7286d0C2FF829b9b44970fB1b579a9C4c117c4F7);
 
     function createProject(string memory _name, string memory _description, uint _goal, uint _minGoal) public {
         factoryInterface.createProject(_name, _description, _goal, _minGoal, msg.sender);
@@ -414,9 +422,9 @@ contract Portal{
         ProjectVault[_name] += msg.value;
     }
 
-    function vote(string memory _name) public {
+    function vote(string memory _name, bool continue_or_not) public {
         project projectInterface = project(factoryInterface.getProjectAddress(_name));
-        projectInterface.vote(_name, msg.sender, checkTokenBalance(_name, msg.sender));
+        projectInterface.vote(_name, msg.sender, checkTokenBalance(_name, msg.sender),continue_or_not);
         ERC20 erc_20_interface = ERC20(factoryInterface.getCoinAddress(_name));
         erc_20_interface._burn(msg.sender,checkTokenBalance(_name, msg.sender));
     }
