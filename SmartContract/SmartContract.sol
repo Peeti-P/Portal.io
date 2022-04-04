@@ -433,7 +433,7 @@ contract Portal{
 
     function redeem(string memory _name, uint _minGoal) payable public {
         project projectInterface = project(factoryInterface.getProjectAddress(_name));
-        require (projectInterface.getisEnded() == false, "Project is already ended");
+        //require (projectInterface.getisEnded() == false, "Project is already ended");
         projectInterface.redeem(_minGoal, msg.sender);
         ERC20 erc_20_interface = ERC20(factoryInterface.getCoinAddress(_name));
         address[] memory temp = projectInterface.getAllAddress();
