@@ -172,7 +172,7 @@ contract project {
     }
 
     function cancelProject(address _address) payable public{
-        require(projectOwner == _address, "You are not the owner of the project");
+        //require(projectOwner == _address, "You are not the owner of the project");
         require(vote_not_continue > goal/2, "No voting need to surpass half of the total amount");
         isEnd = true;
     }
@@ -223,6 +223,9 @@ contract project {
         return all_participant_count;
     }
     
+    function getGoal() public view returns(uint){
+        return goal;
+    }
 }
 
 contract ERC20 is Context, IERC20, IERC20Metadata {
@@ -403,7 +406,7 @@ contract ERC20 is Context, IERC20, IERC20Metadata {
 contract Portal{
     // need to change contract of the project factory
     mapping(string => uint) ProjectVault;
-    projectFactory factoryInterface =  projectFactory(0x7286d0C2FF829b9b44970fB1b579a9C4c117c4F7);
+    projectFactory factoryInterface =  projectFactory(0x2DFdBBa4D4270c2dCbD1D304c2290887AF74A576);
 
     function createProject(string memory _name, string memory _description, uint _goal, uint _minGoal) public {
         factoryInterface.createProject(_name, _description, _goal, _minGoal, msg.sender);
@@ -478,14 +481,13 @@ contract Portal{
     function cancel_project(string memory _name) public {
         project projectInterface = project(factoryInterface.getProjectAddress(_name));
         require (projectInterface.getisEnded() == false, "Project is already ended");
-
         ERC20 erc_20_interface = ERC20(factoryInterface.getCoinAddress(_name));
         address[] memory temp = projectInterface.getAllAddress();
         projectInterface.cancelProject(msg.sender);
-        uint totalsupply = erc_20_interface.totalSupply();
+        //uint totalsupply = erc_20_interface.totalSupply();
         uint projectBalance = projectInterface.balanceofProject();
         for (uint i=0; i<projectInterface.getAllparticount();i++){
-            projectInterface.withdraw_cancel((erc_20_interface.balanceOf(temp[i])*projectBalance)/totalsupply, temp[i]);
+            projectInterface.withdraw_cancel((projectInterface.getContributeAmount(temp[i])*projectBalance)/projectInterface.getGoal(), temp[i]);
         }
     }
 
