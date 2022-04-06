@@ -516,7 +516,6 @@ contract Portal{
     //function for cusomter to redeem(burn) their project token, so project initiators can check the record and deliver a predestined reward
     function customer_redeem(string memory _name) public payable {
         project projectInterface = project(factoryInterface.getProjectAddress(_name));
-        require (projectInterface.getisEnded() == true, "Project is still ongoing");
         ERC20 erc_20_interface = ERC20(factoryInterface.getCoinAddress(_name));
         erc_20_interface._burn(msg.sender,erc_20_interface.balanceOf(msg.sender));
     }
