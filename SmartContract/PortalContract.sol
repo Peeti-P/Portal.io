@@ -194,6 +194,14 @@ contract project {
         isEnd = true;
     }
 
+    //function to mark the project as finished
+    function markAsEnd() payable public{
+        //require(projectOwner == _address, "You are not the owner of the project");
+        if(balanceofProject() < 10){
+            isEnd = true;
+        }
+    }
+
     // function to set min goal
     function setMinGoal(uint _minGoal) internal{
         minGoal = _minGoal;
@@ -253,7 +261,7 @@ contract project {
     }
 }
 
-// This smart contract is asStandard ERC-20 from Openzeppelin, so the there wil be no comment in this part
+// This smart contract is a standard ERC-20 from Openzeppelin, so the there wil be no comment in this part
 contract ERC20 is Context, IERC20, IERC20Metadata {
     mapping(address => uint256) private _balances;
 
@@ -434,7 +442,7 @@ contract Portal{
     // mapping to store each project money managing the vault
     mapping(string => uint) ProjectVault;
     // need to change contract of the project factory everytime when you deploy the new contract
-    projectFactory factoryInterface =  projectFactory(0x2DFdBBa4D4270c2dCbD1D304c2290887AF74A576);
+    projectFactory factoryInterface =  projectFactory(0x78eAA42707853fE8922997C7bBEe67198971Ea33);
     // create project by passing the value to projectFactory
     function createProject(string memory _name, string memory _description, uint _goal, uint _minGoal) public {
         factoryInterface.createProject(_name, _description, _goal, _minGoal, msg.sender);
@@ -462,6 +470,8 @@ contract Portal{
     function vote(string memory _name, bool continue_or_not) public {
         //create interface for the project
         project projectInterface = project(factoryInterface.getProjectAddress(_name));
+        require (projectInterface.getisEnded() == false, "Project is already ended");
+        require (projectInterface.getisOpen() == false, "Project is still in a crowdfunding period");
         projectInterface.vote(_name, msg.sender, checkTokenBalance(_name, msg.sender),continue_or_not);
         //create interface for the project token
         ERC20 erc_20_interface = ERC20(factoryInterface.getCoinAddress(_name));
@@ -480,13 +490,14 @@ contract Portal{
         for (uint i=0; i<projectInterface.getAllparticount();i++){
             erc_20_interface._mint(temp[i],projectInterface.getVotingAmount(temp[i]));
         }
+        projectInterface.markAsEnd();
     }
 
     //function for project initiators to launch the project
     function Launch(string memory _name) public payable {
         // mainly transfer the eth from the main contract to the individual project contract
         project projectInterface = project(factoryInterface.getProjectAddress(_name));
-        require(return_isOpen(_name) == false, "This project is still ongoing");
+        require(return_isOpen(_name) == false, "This project crowdfunding period is still ongoing");
         require (projectInterface.getisEnded() == false, "Project is already ended");
         require (ProjectVault[_name] != 0, "The project is already launched");
         address payable project_receiver = payable(factoryInterface.getProjectAddress(_name));
@@ -516,6 +527,7 @@ contract Portal{
     //function for cusomter to redeem(burn) their project token, so project initiators can check the record and deliver a predestined reward
     function customer_redeem(string memory _name) public payable {
         project projectInterface = project(factoryInterface.getProjectAddress(_name));
+        require (projectInterface.getisEnded() == true, "Project is still going");
         ERC20 erc_20_interface = ERC20(factoryInterface.getCoinAddress(_name));
         erc_20_interface._burn(msg.sender,erc_20_interface.balanceOf(msg.sender));
     }
